@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="container text-center">
+        <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="TaskNest Logo" class="mb-4 fade-in" style="max-width: 250px; border-radius: 25px; box-shadow: 0 15px 40px rgba(255, 193, 7, 0.4); animation: float 6s ease-in-out infinite;">
+        <h1 class="hero-title mb-4 fade-in" style="animation-delay: 0.1s;">Welcome to <span class="text-gradient">TaskNest</span></h1>
+        <p class="hero-subtitle mb-5 fade-in" style="animation-delay: 0.2s;">Your personal hive of productivity! Organize tasks, set reminders, and track your progress like a busy bee. 🐝✨</p>
+        <div class="d-flex justify-content-center gap-4 fade-in" style="animation-delay: 0.3s;">
+            <a href="{{ url_for('register') }}" class="btn btn-honey btn-lg">
+                <i class="bi bi-person-plus me-2"></i> Get Started
+            </a>
+            <a href="{{ url_for('login') }}" class="btn btn-honey-outline btn-lg">
+                <i class="bi bi-box-arrow-in-right me-2"></i> Sign In
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="container my-5">
+    <div class="row text-center mb-5">
+        <div class="col-12">
+            <h2 class="fw-bold mb-4" style="font-size: 2.5rem;">
+                <i class="bi bi-star-fill text-honey"></i> Why Choose <span class="text-gradient">TaskNest</span>? <i class="bi bi-star-fill text-honey"></i>
+            </h2>
+            <p class="lead text-muted">Discover the features that make TaskNest your perfect productivity partner</p>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="honeycomb-card p-4 h-100 fade-in">
+                <div class="text-center mb-3">
+                    <i class="bi bi-list-check stat-icon"></i>
+                </div>
+                <h4 class="fw-bold mb-3 text-center">Task Management</h4>
+                <p class="text-center">Create, organize, and prioritize your assignments, projects, and exams with ease. Never miss a deadline!</p>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="honeycomb-card p-4 h-100 fade-in" style="animation-delay: 0.1s;">
+                <div class="text-center mb-3">
+                    <i class="bi bi-bell-fill stat-icon"></i>
+                </div>
+                <h4 class="fw-bold mb-3 text-center">Smart Reminders</h4>
+                <p class="text-center">Get timely alerts for upcoming CATs, exams, and deadlines. Stay ahead of your schedule!</p>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="honeycomb-card p-4 h-100 fade-in" style="animation-delay: 0.2s;">
+                <div class="text-center mb-3">
+                    <i class="bi bi-graph-up-arrow stat-icon"></i>
+                </div>
+                <h4 class="fw-bold mb-3 text-center">Progress Tracking</h4>
+                <p class="text-center">Monitor your progress and celebrate achievements. Watch your productivity soar!</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4 mt-4">
+        <div class="col-md-4">
+            <div class="honeycomb-card p-4 h-100 fade-in" style="animation-delay: 0.3s;">
+                <div class="text-center mb-3">
+                    <i class="bi bi-calendar3 stat-icon"></i>
+                </div>
+                <h4 class="fw-bold mb-3 text-center">Calendar View</h4>
+                <p class="text-center">Visualize all your tasks and deadlines in a beautiful calendar interface.</p>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="honeycomb-card p-4 h-100 fade-in" style="animation-delay: 0.4s;">
+                <div class="text-center mb-3">
+                    <i class="bi bi-speedometer2 stat-icon"></i>
+                </div>
+                <h4 class="fw-bold mb-3 text-center">Dashboard Analytics</h4>
+                <p class="text-center">Get insights into your productivity with comprehensive statistics and analytics.</p>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="honeycomb-card p-4 h-100 fade-in" style="animation-delay: 0.5s;">
+                <div class="text-center mb-3">
+                    <i class="bi bi-award-fill stat-icon"></i>
+                </div>
+                <h4 class="fw-bold mb-3 text-center">Achievement Tracking</h4>
+                <p class="text-center">Celebrate your wins and stay motivated throughout your academic journey.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="text-center mt-5">
+        <h3 class="mb-4">Ready to boost your productivity?</h3>
+        <a href="{{ url_for('register') }}" class="btn btn-honey btn-lg">
+            Join the Hive Today! 🐝
+        </a>
+    </div>
+</div>
+{% endblock %}

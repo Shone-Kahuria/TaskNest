@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - TaskNest{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="honeycomb-card p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-person-circle" style="font-size: 5rem; color: var(--honey-yellow);"></i>
+                    <h2 class="fw-bold mt-3">{{ current_user.full_name or current_user.username }}</h2>
+                    <p class="text-muted">@{{ current_user.username }}</p>
+                </div>
+                
+                <hr>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong><i class="bi bi-envelope"></i> Email:</strong>
+                        <p>{{ current_user.email }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <strong><i class="bi bi-mortarboard"></i> Class:</strong>
+                        <p>{{ current_user.class_name or 'Not set' }}</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <strong><i class="bi bi-calendar-plus"></i> Member Since:</strong>
+                        <p>{{ current_user.created_at.strftime('%B %d, %Y') }}</p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="text-center">
+                    <h5 class="fw-bold mb-3">Account Actions</h5>
+                    <div class="d-flex gap-2 justify-content-center flex-wrap">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-honey">
+                            <i class="bi bi-speedometer2"></i> Go to Dashboard
+                        </a>
+                        <a href="{{ url_for('tasks') }}" class="btn btn-honey">
+                            <i class="bi bi-list-task"></i> View Tasks
+                        </a>
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
