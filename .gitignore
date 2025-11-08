@@ -1,0 +1,56 @@
+# --- Virtual environment ---
+venv/
+ENV/
+env/
+.venv/
+
+# --- Python cache & compiled files ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Environment variables ---
+.env
+.env.local
+.env.*.local
+
+# --- Database files (if using SQLite locally) ---
+*.db
+*.sqlite3
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Flask / instance folders ---
+instance/
+.migrations/
+
+# --- IDE / Editor settings ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- System files ---
+.DS_Store
+Thumbs.db
+
+# --- Test / coverage / build files ---
+.coverage
+.pytest_cache/
+htmlcov/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Node / JS (if you use npm or yarn for frontend) ---
+node_modules/
+package-lock.json
+yarn.lock
+
+# --- Temporary / backup files ---
+*.bak
+*.swp
+*.tmp
