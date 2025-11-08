@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Progress - {{ task.title }} - TaskNest{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <a href="{{ url_for('tasks') }}" class="btn btn-secondary mb-3">
+                <i class="bi bi-arrow-left"></i> Back to Tasks
+            </a>
+            <h1 class="fw-bold">
+                <i class="bi bi-graph-up-arrow text-honey"></i> Task Progress
+            </h1>
+            <h3 class="text-muted">{{ task.title }}</h3>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Progress Update Form -->
+        <div class="col-md-6">
+            <div class="honeycomb-card p-4 mb-4">
+                <h5 class="fw-bold mb-3">Update Progress</h5>
+                
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.progress_percentage.label(class="form-label") }}
+                        {{ form.progress_percentage(class="form-select") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="4", placeholder="Add notes about your progress...") }}
+                    </div>
+                    
+                    {{ form.submit(class="btn btn-honey w-100") }}
+                </form>
+            </div>
+            
+            <!-- Task Details -->
+            <div class="honeycomb-card p-4">
+                <h5 class="fw-bold mb-3">Task Details</h5>
+                <p><strong>Category:</strong> <span class="badge bg-secondary">{{ task.category }}</span></p>
+                <p><strong>Priority:</strong> <span class="badge badge-priority-{{ task.priority }}">{{ task.priority.upper() }}</span></p>
+                <p><strong>Status:</strong> <span class="badge bg-info">{{ task.status.replace('_', ' ').title() }}</span></p>
+                <p><strong>Deadline:</strong> {{ task.deadline.strftime('%B %d, %Y at %I:%M %p') }}</p>
+                {% if task.description %}
+                <p><strong>Description:</strong> {{ task.description }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Progress History -->
+        <div class="col-md-6">
+            <div class="honeycomb-card p-4">
+                <h5 class="fw-bold mb-3">Progress History</h5>
+                
+                {% if progress_records %}
+                    <div class="timeline">
+                        {% for progress in progress_records %}
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="fw-bold mb-0">{{ progress.progress_percentage }}% Complete</h6>
+                                    <small class="text-muted">
+                                        {{ progress.recorded_at.strftime('%b %d, %Y') }}
+                                    </small>
+                                </div>
+                                
+                                <div class="progress progress-honey mb-2">
+                                    <div class="progress-bar progress-bar-honey" 
+                                         style="width: {{ progress.progress_percentage }}%;">
+                                    </div>
+                                </div>
+                                
+                                {% if progress.notes %}
+                                <p class="text-muted small mb-0">{{ progress.notes }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-graph-up" style="font-size: 3rem; color: var(--honey-yellow);"></i>
+                        <p class="text-muted mt-2">No progress recorded yet. Start tracking your progress!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
