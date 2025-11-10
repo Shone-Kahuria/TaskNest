@@ -45,10 +45,10 @@ class Task(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
     
-    # Foreign Keys
+    # The foreign Keys
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
-    # Relationships
+    # The relationships
     reminders = db.relationship('Reminder', backref='task', lazy='dynamic', cascade='all, delete-orphan')
     progress_records = db.relationship('Progress', backref='task', lazy='dynamic', cascade='all, delete-orphan')
     
@@ -73,7 +73,7 @@ class Reminder(db.Model):
     is_sent = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Foreign Keys
+    # The foreign Keys
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
     
@@ -89,7 +89,7 @@ class Progress(db.Model):
     notes = db.Column(db.Text)
     recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Foreign Keys
+    # The foreign Keys
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=False)
     
@@ -108,7 +108,7 @@ class Exam(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Foreign Keys
+    # The foreign Keys
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
     def __repr__(self):
