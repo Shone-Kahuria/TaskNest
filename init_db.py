@@ -22,3 +22,20 @@ def init_database():
         print("  - exams")
         print("\nDatabase initialization complete!")
 
+def create_test_user():
+    """Create a test user for development"""
+    with app.app_context():
+        # Check if test user already exists
+        existing_user = User.query.filter_by(username='student').first()
+        if existing_user:
+            print("Test user already exists!")
+            return
+        
+        # Create test user
+        test_user = User(
+            username='student',
+            email='student@test.com',
+            full_name='Test Student',
+            class_name='Year 3'
+        )
+       
