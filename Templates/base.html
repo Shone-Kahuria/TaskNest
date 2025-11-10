@@ -154,6 +154,31 @@
     <script>
         let apiWorking = false;
         
+        // Notification sound (using Web Audio API)
+        function playNotificationSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+                
+                console.log('🔊 Notification sound played');
+            } catch (e) {
+                console.error('Error playing sound:', e);
+            }
+        }
+        
         function testAPI() {
             console.log('🧪 Testing API connection...');
             $.ajax({
@@ -186,6 +211,7 @@
                     console.log('✅ Reminders found:', reminders.length);
                     if (reminders.length > 0) {
                         console.log('📢 Showing reminder modal');
+                        playNotificationSound(); // Play sound when reminders are found
                         showReminderModal(reminders);
                     }
                 },
@@ -204,7 +230,7 @@
             let content = '';
             reminders.forEach(function(reminder) {
                 content += `
-                    <div class="alert alert-warning mb-3">
+                    <div class="alert alert-warning mb-3 reminder-alert">
                         <h6 class="fw-bold"><i class="bi bi-bell-fill"></i> ${reminder.title}</h6>
                         <p class="mb-1">${reminder.message || 'Reminder alert!'}</p>
                         <small class="text-muted"><i class="bi bi-clock"></i> ${reminder.time}</small>
@@ -221,6 +247,20 @@
             const reminderModal = new bootstrap.Modal(document.getElementById('reminderModal'));
             reminderModal.show();
             console.log('✅ Modal displayed');
+            
+            // Request browser notification permission if not granted
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            
+            // Show browser notification if permission granted
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('TaskNest Reminder 🐝', {
+                    body: `You have ${reminders.length} reminder(s) pending!`,
+                    icon: '{{ url_for("static", filename="images/logo.jpg") }}',
+                    badge: '{{ url_for("static", filename="images/logo.jpg") }}'
+                });
+            }
         }
         
         function markReminderSeen(reminderId) {
@@ -231,8 +271,15 @@
                 timeout: 5000,
                 success: function() {
                     console.log('✅ Reminder marked as seen');
-                    // Close modal and remove the reminder from view
-                    bootstrap.Modal.getInstance(document.getElementById('reminderModal')).hide();
+                    // Remove the reminder alert from view
+                    $(`button[onclick="markReminderSeen(${reminderId})"]`).closest('.reminder-alert').fadeOut();
+                    
+                    // Check if there are any more reminders
+                    setTimeout(function() {
+                        if ($('.reminder-alert:visible').length === 0) {
+                            bootstrap.Modal.getInstance(document.getElementById('reminderModal')).hide();
+                        }
+                    }, 300);
                 },
                 error: function(xhr, status, error) {
                     console.error('❌ Error marking reminder:', error);
@@ -249,9 +296,29 @@
                 checkReminders(); // Check after 2 seconds
                 setInterval(checkReminders, 30000); // Then every 30 seconds
             }, 2000);
+            
+            // Fix for modal backdrop blocking input
+            // Remove any stuck modal backdrops on page load
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open').css('overflow', '').css('padding-right', '');
+            
+            // Clean up modal backdrops when modals are hidden
+            $('#reminderModal').on('hidden.bs.modal', function () {
+                $('.modal-backdrop').remove();
+                $('body').removeClass('modal-open').css('overflow', '').css('padding-right', '');
+            });
         });
     </script>
     {% endif %}
+    
+    <script>
+        // Global fix for stuck modal backdrops (applies to all users)
+        $(document).ready(function() {
+            // Remove any stuck modal backdrops on page load
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open').css('overflow', '').css('padding-right', '');
+        });
+    </script>
     
     {% block extra_js %}{% endblock %}
 </body>

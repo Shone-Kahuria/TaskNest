@@ -1,17 +1,22 @@
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_migrate import Migrate
 from datetime import datetime, timedelta
 from config import Config
 from models import db, User, Task, Reminder, Progress, Exam
 from forms import RegistrationForm, LoginForm, TaskForm, ReminderForm, ProgressForm
 from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy.exc import IntegrityError, OperationalError
 import os
+import csv
+from io import StringIO
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
 # Initialize extensions
 db.init_app(app)
+migrate = Migrate(app, db)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -40,14 +45,23 @@ def check_reminders():
             
             for reminder in pending_reminders:
                 # In a production app, you would send email/push notification here
-                print(f"🔔 REMINDER TRIGGERED: {reminder.title} - {reminder.message}")
+                print(f"[REMINDER] TRIGGERED: {reminder.title} - {reminder.message}")
+                print(f"   User: {reminder.user.username} (ID: {reminder.user_id})")
+                print(f"   Time: {reminder.reminder_time}")
                 reminder.is_sent = True
             
             if pending_reminders:
                 db.session.commit()
-                print(f"✅ Marked {len(pending_reminders)} reminder(s) as sent")
+                print(f"[SUCCESS] Marked {len(pending_reminders)} reminder(s) as sent at {now}")
+            else:
+                # Silent check - no output unless there's an issue
+                pass
+    except OperationalError as e:
+        print(f"[ERROR] Database connection error in reminder check: {e}")
     except Exception as e:
-        print(f"❌ Error checking reminders: {e}")
+        print(f"[ERROR] Error checking reminders: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def start_scheduler():
@@ -55,12 +69,21 @@ def start_scheduler():
     global scheduler_started
     if not scheduler_started:
         try:
-            scheduler.add_job(func=check_reminders, trigger="interval", seconds=30, id='reminder_check')
+            scheduler.add_job(
+                func=check_reminders, 
+                trigger="interval", 
+                seconds=30, 
+                id='reminder_check',
+                replace_existing=True,
+                max_instances=1
+            )
             scheduler.start()
             scheduler_started = True
-            print("✅ Reminder scheduler started successfully")
+            print("[SUCCESS] Reminder scheduler started successfully (checks every 30 seconds)")
         except Exception as e:
-            print(f"❌ Error starting scheduler: {e}")
+            print(f"[ERROR] Error starting scheduler: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 # Routes
@@ -78,18 +101,25 @@ def register():
     
     form = RegistrationForm()
     if form.validate_on_submit():
-        user = User(
-            username=form.username.data,
-            email=form.email.data,
-            full_name=form.full_name.data,
-            class_name=form.class_name.data
-        )
-        user.set_password(form.password.data)
-        db.session.add(user)
-        db.session.commit()
-        
-        flash('Account created successfully! Please log in.', 'success')
-        return redirect(url_for('login'))
+        try:
+            user = User(
+                username=form.username.data,
+                email=form.email.data,
+                full_name=form.full_name.data,
+                class_name=form.class_name.data
+            )
+            user.set_password(form.password.data)
+            db.session.add(user)
+            db.session.commit()
+            
+            flash('Account created successfully! Please log in.', 'success')
+            return redirect(url_for('login'))
+        except IntegrityError:
+            db.session.rollback()
+            flash('An error occurred. Username or email may already exist.', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'An error occurred: {str(e)}', 'danger')
     
     return render_template('register.html', form=form)
 
@@ -166,6 +196,7 @@ def dashboard():
 def tasks():
     status_filter = request.args.get('status', 'all')
     category_filter = request.args.get('category', 'all')
+    search_query = request.args.get('search', '').strip()
     
     query = Task.query.filter_by(user_id=current_user.id)
     
@@ -175,9 +206,19 @@ def tasks():
     if category_filter != 'all':
         query = query.filter_by(category=category_filter)
     
+    if search_query:
+        search_pattern = f"%{search_query}%"
+        query = query.filter(
+            db.or_(
+                Task.title.ilike(search_pattern),
+                Task.description.ilike(search_pattern)
+            )
+        )
+    
     tasks = query.order_by(Task.deadline.asc()).all()
     
-    return render_template('tasks.html', tasks=tasks, status_filter=status_filter, category_filter=category_filter)
+    return render_template('tasks.html', tasks=tasks, status_filter=status_filter, 
+                         category_filter=category_filter, search_query=search_query)
 
 
 @app.route('/task/new', methods=['GET', 'POST'])
@@ -186,32 +227,42 @@ def new_task():
     form = TaskForm()
     
     if form.validate_on_submit():
-        task = Task(
-            title=form.title.data,
-            description=form.description.data,
-            category=form.category.data,
-            priority=form.priority.data,
-            deadline=form.deadline.data,
-            user_id=current_user.id
-        )
-        db.session.add(task)
-        db.session.commit()
-        
-        # Create automatic reminder 1 day before deadline
-        reminder_time = form.deadline.data - timedelta(days=1)
-        if reminder_time > datetime.utcnow():
-            reminder = Reminder(
-                title=f"Reminder: {task.title}",
-                message=f"Your task '{task.title}' is due tomorrow!",
-                reminder_time=reminder_time,
-                user_id=current_user.id,
-                task_id=task.id
+        try:
+            # Validate deadline is in the future
+            if form.deadline.data <= datetime.utcnow():
+                flash('Deadline must be in the future.', 'warning')
+                return render_template('task_form.html', form=form, title='New Task')
+            
+            task = Task(
+                title=form.title.data.strip(),
+                description=form.description.data.strip() if form.description.data else None,
+                category=form.category.data,
+                priority=form.priority.data,
+                deadline=form.deadline.data,
+                user_id=current_user.id
             )
-            db.session.add(reminder)
+            db.session.add(task)
             db.session.commit()
-        
-        flash('Task created successfully!', 'success')
-        return redirect(url_for('tasks'))
+            
+            # Create automatic reminder 1 day before deadline
+            reminder_time = form.deadline.data - timedelta(days=1)
+            if reminder_time > datetime.utcnow():
+                reminder = Reminder(
+                    title=f"Reminder: {task.title}",
+                    message=f"Your task '{task.title}' is due tomorrow!",
+                    reminder_time=reminder_time,
+                    user_id=current_user.id,
+                    task_id=task.id
+                )
+                db.session.add(reminder)
+                db.session.commit()
+            
+            flash('Task created successfully!', 'success')
+            return redirect(url_for('tasks'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating task: {str(e)}', 'danger')
     
     return render_template('task_form.html', form=form, title='New Task')
 
@@ -228,16 +279,26 @@ def edit_task(task_id):
     form = TaskForm(obj=task)
     
     if form.validate_on_submit():
-        task.title = form.title.data
-        task.description = form.description.data
-        task.category = form.category.data
-        task.priority = form.priority.data
-        task.deadline = form.deadline.data
-        task.updated_at = datetime.utcnow()
-        
-        db.session.commit()
-        flash('Task updated successfully!', 'success')
-        return redirect(url_for('tasks'))
+        try:
+            # Validate deadline is in the future for non-completed tasks
+            if task.status != 'completed' and form.deadline.data <= datetime.utcnow():
+                flash('Deadline must be in the future for active tasks.', 'warning')
+                return render_template('task_form.html', form=form, title='Edit Task', task=task)
+            
+            task.title = form.title.data.strip()
+            task.description = form.description.data.strip() if form.description.data else None
+            task.category = form.category.data
+            task.priority = form.priority.data
+            task.deadline = form.deadline.data
+            task.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            flash('Task updated successfully!', 'success')
+            return redirect(url_for('tasks'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating task: {str(e)}', 'danger')
     
     return render_template('task_form.html', form=form, title='Edit Task', task=task)
 
@@ -265,22 +326,59 @@ def complete_task(task_id):
     if task.user_id != current_user.id:
         return jsonify({'error': 'Unauthorized'}), 403
     
-    task.status = 'completed'
-    task.completed_at = datetime.utcnow()
+    try:
+        task.status = 'completed'
+        task.completed_at = datetime.utcnow()
+        
+        # Update progress to 100%
+        progress = Progress.query.filter_by(task_id=task.id).order_by(Progress.recorded_at.desc()).first()
+        if not progress or progress.progress_percentage != 100:
+            new_progress = Progress(
+                progress_percentage=100,
+                notes='Task completed',
+                user_id=current_user.id,
+                task_id=task.id
+            )
+            db.session.add(new_progress)
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Task marked as complete!'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/task/<int:task_id>/status', methods=['POST'])
+@login_required
+def update_task_status(task_id):
+    """Update task status via AJAX"""
+    task = Task.query.get_or_404(task_id)
     
-    # Update progress to 100%
-    progress = Progress.query.filter_by(task_id=task.id).order_by(Progress.recorded_at.desc()).first()
-    if not progress or progress.progress_percentage != 100:
-        new_progress = Progress(
-            progress_percentage=100,
-            notes='Task completed',
-            user_id=current_user.id,
-            task_id=task.id
-        )
-        db.session.add(new_progress)
+    if task.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
     
-    db.session.commit()
-    return jsonify({'success': True, 'message': 'Task marked as complete!'})
+    try:
+        new_status = request.json.get('status')
+        
+        if new_status not in ['pending', 'in_progress', 'completed']:
+            return jsonify({'error': 'Invalid status'}), 400
+        
+        task.status = new_status
+        
+        if new_status == 'completed':
+            task.completed_at = datetime.utcnow()
+        else:
+            task.completed_at = None
+        
+        task.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'Task status updated to {new_status.replace("_", " ").title()}'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/task/<int:task_id>/progress', methods=['GET', 'POST'])
@@ -295,24 +393,30 @@ def task_progress(task_id):
     form = ProgressForm()
     
     if form.validate_on_submit():
-        progress = Progress(
-            progress_percentage=form.progress_percentage.data,
-            notes=form.notes.data,
-            user_id=current_user.id,
-            task_id=task.id
-        )
-        db.session.add(progress)
-        
-        # Update task status based on progress
-        if form.progress_percentage.data == 100:
-            task.status = 'completed'
-            task.completed_at = datetime.utcnow()
-        elif form.progress_percentage.data > 0:
-            task.status = 'in_progress'
-        
-        db.session.commit()
-        flash('Progress updated successfully!', 'success')
-        return redirect(url_for('task_progress', task_id=task.id))
+        try:
+            progress = Progress(
+                progress_percentage=form.progress_percentage.data,
+                notes=form.notes.data.strip() if form.notes.data else None,
+                user_id=current_user.id,
+                task_id=task.id
+            )
+            db.session.add(progress)
+            
+            # Update task status based on progress
+            if form.progress_percentage.data == 100:
+                task.status = 'completed'
+                task.completed_at = datetime.utcnow()
+            elif form.progress_percentage.data > 0 and task.status == 'pending':
+                task.status = 'in_progress'
+            
+            task.updated_at = datetime.utcnow()
+            db.session.commit()
+            flash('Progress updated successfully!', 'success')
+            return redirect(url_for('task_progress', task_id=task.id))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating progress: {str(e)}', 'danger')
     
     progress_records = Progress.query.filter_by(task_id=task.id).order_by(Progress.recorded_at.desc()).all()
     
@@ -340,17 +444,27 @@ def new_reminder():
     form = ReminderForm()
     
     if form.validate_on_submit():
-        reminder = Reminder(
-            title=form.title.data,
-            message=form.message.data,
-            reminder_time=form.reminder_time.data,
-            user_id=current_user.id
-        )
-        db.session.add(reminder)
-        db.session.commit()
-        
-        flash('Reminder set successfully!', 'success')
-        return redirect(url_for('reminders'))
+        try:
+            # Validate reminder time is in the future
+            if form.reminder_time.data <= datetime.utcnow():
+                flash('Reminder time must be in the future.', 'warning')
+                return render_template('reminder_form.html', form=form, title='New Reminder')
+            
+            reminder = Reminder(
+                title=form.title.data.strip(),
+                message=form.message.data.strip() if form.message.data else None,
+                reminder_time=form.reminder_time.data,
+                user_id=current_user.id
+            )
+            db.session.add(reminder)
+            db.session.commit()
+            
+            flash('Reminder set successfully!', 'success')
+            return redirect(url_for('reminders'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating reminder: {str(e)}', 'danger')
     
     return render_template('reminder_form.html', form=form, title='New Reminder')
 
@@ -432,10 +546,10 @@ def api_check_reminders():
                 'time': reminder.reminder_time.strftime('%B %d, %Y at %I:%M %p')
             })
         
-        print(f"🔔 API: Found {len(reminders_data)} pending reminders for user {current_user.username}")
+        print(f"[REMINDER] API: Found {len(reminders_data)} pending reminders for user {current_user.username}")
         return jsonify(reminders_data)
     except Exception as e:
-        print(f"❌ API Error in check-reminders: {str(e)}")
+        print(f"[ERROR] API Error in check-reminders: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -447,16 +561,16 @@ def mark_reminder_seen(reminder_id):
         reminder = Reminder.query.get_or_404(reminder_id)
         
         if reminder.user_id != current_user.id:
-            print(f"❌ API: Unauthorized access to reminder {reminder_id}")
+            print(f"[ERROR] API: Unauthorized access to reminder {reminder_id}")
             return jsonify({'error': 'Unauthorized'}), 403
         
         reminder.is_sent = True
         db.session.commit()
         
-        print(f"✅ API: Reminder {reminder_id} marked as seen")
+        print(f"[SUCCESS] API: Reminder {reminder_id} marked as seen")
         return jsonify({'success': True})
     except Exception as e:
-        print(f"❌ API Error in mark-reminder-seen: {str(e)}")
+        print(f"[ERROR] API Error in mark-reminder-seen: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -465,6 +579,100 @@ def mark_reminder_seen(reminder_id):
 def api_ping():
     """Test endpoint to verify API is working"""
     return jsonify({'status': 'ok', 'message': 'API is working', 'user': current_user.username})
+
+
+# Error Handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('errors/404.html'), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('errors/500.html'), 500
+
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template('errors/403.html'), 403
+
+
+# Export tasks to CSV
+@app.route('/tasks/export')
+@login_required
+def export_tasks():
+    """Export user's tasks to CSV file"""
+    try:
+        tasks = Task.query.filter_by(user_id=current_user.id).order_by(Task.deadline.asc()).all()
+        
+        # Create CSV in memory
+        si = StringIO()
+        writer = csv.writer(si)
+        
+        # Write header
+        writer.writerow(['Title', 'Description', 'Category', 'Priority', 'Status', 'Deadline', 'Created', 'Completed'])
+        
+        # Write tasks
+        for task in tasks:
+            writer.writerow([
+                task.title,
+                task.description or '',
+                task.category,
+                task.priority,
+                task.status,
+                task.deadline.strftime('%Y-%m-%d %H:%M'),
+                task.created_at.strftime('%Y-%m-%d %H:%M'),
+                task.completed_at.strftime('%Y-%m-%d %H:%M') if task.completed_at else ''
+            ])
+        
+        output = si.getvalue()
+        si.close()
+        
+        # Create response
+        from flask import Response
+        response = Response(output, mimetype='text/csv')
+        response.headers['Content-Disposition'] = f'attachment; filename=tasknest_tasks_{datetime.utcnow().strftime("%Y%m%d")}.csv'
+        
+        flash('Tasks exported successfully!', 'success')
+        return response
+        
+    except Exception as e:
+        flash(f'Error exporting tasks: {str(e)}', 'danger')
+        return redirect(url_for('tasks'))
+
+
+# Profile update route
+@app.route('/profile/edit', methods=['GET', 'POST'])
+@login_required
+def edit_profile():
+    """Edit user profile information"""
+    if request.method == 'POST':
+        try:
+            current_user.full_name = request.form.get('full_name', current_user.full_name)
+            current_user.class_name = request.form.get('class_name', current_user.class_name)
+            
+            # Update password if provided
+            current_password = request.form.get('current_password')
+            new_password = request.form.get('new_password')
+            
+            if current_password and new_password:
+                if current_user.check_password(current_password):
+                    current_user.set_password(new_password)
+                    flash('Password updated successfully!', 'success')
+                else:
+                    flash('Current password is incorrect.', 'danger')
+                    return render_template('profile_edit.html')
+            
+            db.session.commit()
+            flash('Profile updated successfully!', 'success')
+            return redirect(url_for('profile'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating profile: {str(e)}', 'danger')
+    
+    return render_template('profile_edit.html')
 
 
 # Create tables
