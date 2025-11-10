@@ -1,7 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField, SelectField, DateTimeLocalField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
-from TaskNest.models import User
+from models import User
 
 class RegistrationForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=3, max=80)])
