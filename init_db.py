@@ -38,4 +38,12 @@ def create_test_user():
             full_name='Test Student',
             class_name='Year 3'
         )
-       
+        test_user.set_password('password123')
+        
+        db.session.add(test_user)
+        db.session.commit()
+        
+        print("\n✓ Test user created successfully!")
+        print("  Username: student")
+        print("  Password: password123")
+
