@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Enable Two-Factor Authentication - TaskNest{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="honeycomb-card p-4">
+                <h2 class="fw-bold mb-4">
+                    <i class="bi bi-shield-plus text-honey"></i> Enable Two-Factor Authentication
+                </h2>
+                
+                <div class="alert alert-info mb-4">
+                    <h5><i class="bi bi-info-circle"></i> How to Set Up 2FA</h5>
+                    <p class="mb-0">Follow these steps to secure your account with two-factor authentication:</p>
+                </div>
+                
+                <!-- Step 1 -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <span class="badge bg-honey me-2">1</span> Install an Authenticator App
+                        </h5>
+                        <p class="card-text">
+                            Download one of these apps on your smartphone:
+                        </p>
+                        <ul>
+                            <li><strong>Google Authenticator</strong> (Android/iOS)</li>
+                            <li><strong>Microsoft Authenticator</strong> (Android/iOS)</li>
+                            <li><strong>Authy</strong> (Android/iOS/Desktop)</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Step 2 -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <span class="badge bg-honey me-2">2</span> Scan the QR Code
+                        </h5>
+                        <p class="card-text mb-3">
+                            Open your authenticator app and scan this QR code:
+                        </p>
+                        
+                        <div class="text-center mb-3">
+                            <div class="p-3 bg-white d-inline-block rounded shadow">
+                                <img src="data:image/png;base64,{{ qr_code }}" alt="2FA QR Code" style="max-width: 250px;">
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-secondary">
+                            <strong>Can't scan?</strong> Enter this code manually:<br>
+                            <code class="fs-5">{{ secret }}</code>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Step 3 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <span class="badge bg-honey me-2">3</span> Verify and Enable
+                        </h5>
+                        <p class="card-text mb-3">
+                            Enter the 6-digit code from your authenticator app to complete setup:
+                        </p>
+                        
+                        <form method="POST">
+                            {{ form.hidden_tag() }}
+                            
+                            <div class="mb-3">
+                                {{ form.token.label(class="form-label") }}
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                                    {{ form.token(class="form-control form-control-lg text-center" + (" is-invalid" if form.token.errors else ""), 
+                                                 placeholder="000000", maxlength="6", autocomplete="off") }}
+                                </div>
+                                {% if form.token.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.token.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                {{ form.submit(class="btn btn-honey btn-lg") }}
+                                <a href="{{ url_for('security') }}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-x-circle"></i> Cancel
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill"></i> <strong>Important:</strong> Save your secret key in a safe place. You'll need it if you lose access to your authenticator app.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

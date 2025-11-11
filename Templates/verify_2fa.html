@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Two-Factor Authentication - TaskNest{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center" style="margin-top: 100px;">
+        <div class="col-md-5">
+            <div class="honeycomb-card p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-shield-lock-fill" style="font-size: 4rem; color: var(--honey-yellow);"></i>
+                    <h2 class="fw-bold mt-3">Two-Factor Authentication</h2>
+                    <p class="text-muted">Enter the 6-digit code from your authenticator app</p>
+                </div>
+                
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-4">
+                        {{ form.token.label(class="form-label") }}
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                            {{ form.token(class="form-control form-control-lg text-center" + (" is-invalid" if form.token.errors else ""), 
+                                         placeholder="000000", maxlength="6", autocomplete="off") }}
+                        </div>
+                        {% if form.token.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.token.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-honey btn-lg") }}
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Login
+                        </a>
+                    </div>
+                </form>
+                
+                <div class="alert alert-info mt-4">
+                    <i class="bi bi-info-circle"></i> <strong>Tip:</strong> Open your authenticator app (Google Authenticator, Authy, etc.) to get your verification code.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

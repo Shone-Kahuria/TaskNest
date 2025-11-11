@@ -1,16 +1,18 @@
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_from_directory
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_from_directory, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from datetime import datetime, timedelta
 from config import Config
 from models import db, User, Task, Reminder, Progress, Exam
-from forms import RegistrationForm, LoginForm, TaskForm, ReminderForm, ProgressForm
+from forms import RegistrationForm, LoginForm, TaskForm, ReminderForm, ProgressForm, TwoFactorForm, Enable2FAForm
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.exc import IntegrityError, OperationalError
 import os
 import csv
-from io import StringIO
+from io import StringIO, BytesIO
+import qrcode
+import base64
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -135,13 +137,91 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         
-        if user and user.check_password(form.password.data):
-            login_user(user)
-            next_page = request.args.get('next')
-            flash(f'Welcome back, {user.full_name or user.username}!', 'success')
-            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
-        else:
+        if not user:
             flash('Invalid username or password.', 'danger')
+            return render_template('login.html', form=form)
+        
+        # Check if account is locked
+        if user.is_account_locked():
+            lockout_time = (user.account_locked_until - datetime.utcnow()).total_seconds() / 60
+            flash(f'Account is locked due to multiple failed login attempts. Try again in {int(lockout_time)} minutes.', 'danger')
+            return render_template('login.html', form=form)
+        
+        # Verify password
+        if not user.check_password(form.password.data):
+            # Increment failed attempts
+            user.failed_login_attempts += 1
+            
+            # Lock account after 5 failed attempts for 15 minutes
+            if user.failed_login_attempts >= 5:
+                user.account_locked_until = datetime.utcnow() + timedelta(minutes=15)
+                db.session.commit()
+                flash('Account locked due to too many failed login attempts. Please try again in 15 minutes.', 'danger')
+            else:
+                remaining_attempts = 5 - user.failed_login_attempts
+                db.session.commit()
+                flash(f'Invalid password. {remaining_attempts} attempts remaining before account lockout.', 'danger')
+            
+            return render_template('login.html', form=form)
+        
+        # Reset failed attempts on successful password verification
+        user.failed_login_attempts = 0
+        user.account_locked_until = None
+        
+        # Check if 2FA is enabled
+        if user.two_factor_enabled:
+            # Store user_id in session temporarily for 2FA verification
+            session['pending_2fa_user_id'] = user.id
+            db.session.commit()
+            return redirect(url_for('verify_2fa'))
+        
+        # Complete login if no 2FA
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+        
+        login_user(user)
+        next_page = request.args.get('next')
+        flash(f'Welcome back, {user.full_name or user.username}!', 'success')
+        return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+    
+    return render_template('login.html', form=form)
+
+
+@app.route('/verify-2fa', methods=['GET', 'POST'])
+def verify_2fa():
+    """Verify 2FA token during login"""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    user_id = session.get('pending_2fa_user_id')
+    if not user_id:
+        flash('Invalid session. Please login again.', 'danger')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(user_id)
+    if not user:
+        session.pop('pending_2fa_user_id', None)
+        flash('User not found.', 'danger')
+        return redirect(url_for('login'))
+    
+    form = TwoFactorForm()
+    if form.validate_on_submit():
+        if user.verify_2fa_token(form.token.data):
+            # Clear the pending session
+            session.pop('pending_2fa_user_id', None)
+            
+            # Update last login
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+            
+            # Complete login
+            login_user(user)
+            flash(f'Welcome back, {user.full_name or user.username}!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid verification code. Please try again.', 'danger')
+    
+    return render_template('verify_2fa.html', form=form)
     
     return render_template('login.html', form=form)
 
@@ -511,6 +591,72 @@ def calendar():
 @login_required
 def profile():
     return render_template('profile.html')
+
+
+@app.route('/security')
+@login_required
+def security():
+    """Security settings page"""
+    return render_template('security.html')
+
+
+@app.route('/enable-2fa', methods=['GET', 'POST'])
+@login_required
+def enable_2fa():
+    """Enable 2FA for the current user"""
+    if current_user.two_factor_enabled:
+        flash('Two-factor authentication is already enabled.', 'info')
+        return redirect(url_for('security'))
+    
+    # Generate QR code
+    if not current_user.two_factor_secret:
+        current_user.generate_2fa_secret()
+        db.session.commit()
+    
+    form = Enable2FAForm()
+    
+    if form.validate_on_submit():
+        # Verify the token before enabling
+        if current_user.verify_2fa_token(form.token.data):
+            current_user.two_factor_enabled = True
+            db.session.commit()
+            flash('Two-factor authentication has been enabled successfully!', 'success')
+            return redirect(url_for('security'))
+        else:
+            flash('Invalid verification code. Please try again.', 'danger')
+    
+    # Generate QR code
+    uri = current_user.get_2fa_uri()
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(uri)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Convert to base64 for display
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    return render_template('enable_2fa.html', form=form, qr_code=img_str, secret=current_user.two_factor_secret)
+
+
+@app.route('/disable-2fa', methods=['POST'])
+@login_required
+@csrf.exempt
+def disable_2fa():
+    """Disable 2FA for the current user"""
+    try:
+        if not current_user.two_factor_enabled:
+            return jsonify({'error': 'Two-factor authentication is not enabled'}), 400
+        
+        current_user.two_factor_enabled = False
+        current_user.two_factor_secret = None
+        db.session.commit()
+        
+        flash('Two-factor authentication has been disabled.', 'success')
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/favicon.ico')

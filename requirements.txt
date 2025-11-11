@@ -9,6 +9,9 @@ email-validator==2.1.0
 APScheduler==3.10.4
 Werkzeug==3.0.1
 WTForms==3.1.1
+pyotp==2.9.0
+qrcode==7.4.2
+Pillow==10.1.0
 
 # alembic==1.17.1
 # APScheduler==3.10.4

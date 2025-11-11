@@ -2,6 +2,7 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+import pyotp
 
 db = SQLAlchemy()
 
@@ -16,6 +17,15 @@ class User(UserMixin, db.Model):
     class_name = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # 2FA fields
+    two_factor_enabled = db.Column(db.Boolean, default=False)
+    two_factor_secret = db.Column(db.String(32), nullable=True)
+    
+    # Security fields
+    failed_login_attempts = db.Column(db.Integer, default=0)
+    account_locked_until = db.Column(db.DateTime, nullable=True)
+    last_login = db.Column(db.DateTime, nullable=True)
+    
     # Relationships
     tasks = db.relationship('Task', backref='owner', lazy='dynamic', cascade='all, delete-orphan')
     reminders = db.relationship('Reminder', backref='user', lazy='dynamic', cascade='all, delete-orphan')
@@ -26,6 +36,39 @@ class User(UserMixin, db.Model):
     
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    def generate_2fa_secret(self):
+        """Generate a new 2FA secret"""
+        self.two_factor_secret = pyotp.random_base32()
+        return self.two_factor_secret
+    
+    def get_2fa_uri(self):
+        """Get the provisioning URI for QR code"""
+        if not self.two_factor_secret:
+            self.generate_2fa_secret()
+        return pyotp.totp.TOTP(self.two_factor_secret).provisioning_uri(
+            name=self.email,
+            issuer_name='TaskNest'
+        )
+    
+    def verify_2fa_token(self, token):
+        """Verify a 2FA token"""
+        if not self.two_factor_secret:
+            return False
+        totp = pyotp.TOTP(self.two_factor_secret)
+        return totp.verify(token, valid_window=1)
+    
+    def is_account_locked(self):
+        """Check if account is locked"""
+        if self.account_locked_until:
+            if datetime.utcnow() < self.account_locked_until:
+                return True
+            else:
+                # Unlock account if time has passed
+                self.account_locked_until = None
+                self.failed_login_attempts = 0
+                db.session.commit()
+        return False
     
     def __repr__(self):
         return f'<User {self.username}>'

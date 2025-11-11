@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Security Settings - TaskNest{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="honeycomb-card p-4">
+                <h2 class="fw-bold mb-4">
+                    <i class="bi bi-shield-lock text-honey"></i> Security Settings
+                </h2>
+                
+                <!-- Account Security Overview -->
+                <div class="alert alert-info mb-4">
+                    <h5><i class="bi bi-info-circle"></i> Account Security Status</h5>
+                    <ul class="mb-0">
+                        <li>Last Login: {{ current_user.last_login.strftime('%B %d, %Y at %I:%M %p') if current_user.last_login else 'N/A' }}</li>
+                        <li>Account Created: {{ current_user.created_at.strftime('%B %d, %Y') }}</li>
+                        <li>Two-Factor Auth: 
+                            {% if current_user.two_factor_enabled %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Enabled</span>
+                            {% else %}
+                                <span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Disabled</span>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- Two-Factor Authentication Section -->
+                <div class="mb-4">
+                    <h4 class="fw-bold mb-3">
+                        <i class="bi bi-shield-check text-honey"></i> Two-Factor Authentication (2FA)
+                    </h4>
+                    <p class="text-muted">
+                        Add an extra layer of security to your account. When enabled, you'll need to enter a code from your authenticator app in addition to your password.
+                    </p>
+                    
+                    {% if current_user.two_factor_enabled %}
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle-fill"></i> Two-factor authentication is <strong>enabled</strong>. Your account is more secure!
+                        </div>
+                        
+                        <button class="btn btn-danger" onclick="disable2FA()">
+                            <i class="bi bi-x-circle"></i> Disable Two-Factor Authentication
+                        </button>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle-fill"></i> Two-factor authentication is <strong>disabled</strong>. Enable it for better security.
+                        </div>
+                        
+                        <a href="{{ url_for('enable_2fa') }}" class="btn btn-honey">
+                            <i class="bi bi-shield-plus"></i> Enable Two-Factor Authentication
+                        </a>
+                    {% endif %}
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- Password Security -->
+                <div class="mb-4">
+                    <h4 class="fw-bold mb-3">
+                        <i class="bi bi-key-fill text-honey"></i> Password Security
+                    </h4>
+                    <p class="text-muted">
+                        Keep your account secure by using a strong password with at least 8 characters, including uppercase, lowercase, numbers, and special characters.
+                    </p>
+                    <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil-square"></i> Change Password
+                    </a>
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- Security Tips -->
+                <div class="mb-3">
+                    <h4 class="fw-bold mb-3">
+                        <i class="bi bi-lightbulb text-honey"></i> Security Tips
+                    </h4>
+                    <ul class="list-group">
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle-fill text-success"></i> Use a unique, strong password
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle-fill text-success"></i> Enable two-factor authentication
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle-fill text-success"></i> Never share your password with anyone
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle-fill text-success"></i> Log out when using shared computers
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle-fill text-success"></i> Regularly review your account activity
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('profile') }}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function disable2FA() {
+    if (confirm('Are you sure you want to disable two-factor authentication? This will make your account less secure.')) {
+        fetch('/disable-2fa', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('An error occurred. Please try again.');
+        });
+    }
+}
+</script>
+{% endblock %}
