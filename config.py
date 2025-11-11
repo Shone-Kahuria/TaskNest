@@ -14,8 +14,7 @@ class Config:
     SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
-<<<<<<< HEAD
-=======
+
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
     
     # Scheduler configuration
@@ -37,7 +36,7 @@ class Config:
     SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
->>>>>>> 5c46660ee9cda9f88b0f20df37c59c7153d7641e
+ 
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
     
     # Scheduler configuration
