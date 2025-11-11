@@ -48,6 +48,7 @@
                             <i class="bi bi-list-task"></i> View Tasks
                         </a>
                         <form action="{{ url_for('logout') }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <button type="submit" class="btn btn-outline-danger">
                                 <i class="bi bi-box-arrow-right"></i> Logout
                             </button>

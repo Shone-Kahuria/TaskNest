@@ -148,6 +148,7 @@ def login():
 
 @app.route('/logout', methods=['GET', 'POST'])
 @login_required
+@csrf.exempt
 def logout():
     try:
         username = current_user.username
