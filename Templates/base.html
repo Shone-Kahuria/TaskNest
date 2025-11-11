@@ -314,11 +314,65 @@
     <script>
         // Global fix for stuck modal backdrops (applies to all users)
         $(document).ready(function() {
-            // Remove any stuck modal backdrops on page load
-            $('.modal-backdrop').remove();
-            $('body').removeClass('modal-open').css('overflow', '').css('padding-right', '');
+            // Function to clean up modal backdrops and body styles
+            function cleanupModals() {
+                $('.modal-backdrop').remove();
+                $('body').removeClass('modal-open').css('overflow', '').css('padding-right', '');
+                
+                // Ensure all buttons and links are clickable
+                $('button, a, input, select, textarea').css('pointer-events', 'auto');
+            }
+            
+            // Clean up on page load
+            cleanupModals();
+            
+            // Clean up when clicking anywhere on the page
+            $(document).on('click', function() {
+                if ($('.modal.show').length === 0) {
+                    cleanupModals();
+                }
+            });
+            
+            // Clean up when focusing on any input field
+            $('input, textarea, select').on('focus', function() {
+                cleanupModals();
+            });
+            
+            // Clean up on mouse movement
+            $(document).on('mousemove', function() {
+                if ($('.modal.show').length === 0 && $('.modal-backdrop').length > 0) {
+                    cleanupModals();
+                }
+            });
+            
+            // Periodic cleanup check (every 2 seconds)
+            setInterval(function() {
+                if ($('.modal.show').length === 0) {
+                    cleanupModals();
+                }
+            }, 2000);
         });
     </script>
+    
+    <style>
+        /* Ensure buttons and interactive elements are always clickable */
+        button, a, input, select, textarea, .btn {
+            pointer-events: auto !important;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Ensure modal backdrops don't interfere when no modal is shown */
+        body:not(.modal-open) .modal-backdrop {
+            display: none !important;
+        }
+        
+        /* Ensure content is above background elements */
+        .container, .honeycomb-card {
+            position: relative;
+            z-index: 10;
+        }
+    </style>
     
     {% block extra_js %}{% endblock %}
 </body>

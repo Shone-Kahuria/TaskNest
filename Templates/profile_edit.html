@@ -12,7 +12,6 @@
                 </h2>
                 
                 <form method="POST" action="{{ url_for('edit_profile') }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     
                     <div class="mb-4">
                         <label class="form-label"><i class="bi bi-person"></i> Username</label>

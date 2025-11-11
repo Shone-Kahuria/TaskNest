@@ -1,6 +1,7 @@
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
 from datetime import datetime, timedelta
 from config import Config
 from models import db, User, Task, Reminder, Progress, Exam
@@ -17,6 +18,7 @@ app.config.from_object(Config)
 # Initialize extensions
 db.init_app(app)
 migrate = Migrate(app, db)
+csrf = CSRFProtect(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -144,11 +146,16 @@ def login():
     return render_template('login.html', form=form)
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
-    logout_user()
-    flash('You have been logged out.', 'info')
+    try:
+        username = current_user.username
+        logout_user()
+        flash(f'Goodbye {username}! You have been logged out successfully.', 'success')
+    except Exception as e:
+        print(f"[ERROR] Logout error: {str(e)}")
+        flash('An error occurred during logout.', 'error')
     return redirect(url_for('index'))
 
 
