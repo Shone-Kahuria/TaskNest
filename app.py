@@ -166,7 +166,10 @@ def dashboard():
     # Get statistics
     total_tasks = Task.query.filter_by(user_id=current_user.id).count()
     completed_tasks = Task.query.filter_by(user_id=current_user.id, status='completed').count()
-    pending_tasks = Task.query.filter_by(user_id=current_user.id, status='pending').count()
+    
+    # Calculate active tasks (pending + in_progress)
+    active_tasks = Task.query.filter_by(user_id=current_user.id)\
+        .filter(Task.status.in_(['pending', 'in_progress'])).count()
     
     # Get upcoming tasks
     upcoming_tasks = Task.query.filter_by(user_id=current_user.id)\
@@ -192,7 +195,7 @@ def dashboard():
     return render_template('dashboard.html',
                          total_tasks=total_tasks,
                          completed_tasks=completed_tasks,
-                         pending_tasks=pending_tasks,
+                         pending_tasks=active_tasks,  # This now includes both pending and in_progress
                          upcoming_tasks=upcoming_tasks,
                          overdue_tasks=overdue_tasks,
                          upcoming_reminders=upcoming_reminders,
@@ -313,6 +316,7 @@ def edit_task(task_id):
 
 @app.route('/task/<int:task_id>/delete', methods=['POST'])
 @login_required
+@csrf.exempt
 def delete_task(task_id):
     task = Task.query.get_or_404(task_id)
     
@@ -359,6 +363,7 @@ def complete_task(task_id):
 
 @app.route('/task/<int:task_id>/status', methods=['POST'])
 @login_required
+@csrf.exempt
 def update_task_status(task_id):
     """Update task status via AJAX"""
     task = Task.query.get_or_404(task_id)
@@ -479,6 +484,7 @@ def new_reminder():
 
 @app.route('/reminder/<int:reminder_id>/delete', methods=['POST'])
 @login_required
+@csrf.exempt
 def delete_reminder(reminder_id):
     reminder = Reminder.query.get_or_404(reminder_id)
     

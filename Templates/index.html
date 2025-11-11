@@ -1,6 +1,107 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+    /* Splash Screen Styles */
+    #splashScreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #FFC107 0%, #FFB300 50%, #FFA000 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        animation: fadeOut 0.8s ease-in-out 2.5s forwards;
+    }
+    
+    .splash-logo {
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: splashBounce 1s ease-in-out;
+        margin-bottom: 20px;
+    }
+    
+    .splash-text {
+        font-size: 3rem;
+        font-weight: 800;
+        color: white;
+        text-shadow: 3px 3px 10px rgba(0, 0, 0, 0.3);
+        animation: splashSlideUp 0.8s ease-out 0.3s backwards;
+        margin-bottom: 10px;
+    }
+    
+    .splash-tagline {
+        font-size: 1.2rem;
+        color: rgba(255, 255, 255, 0.95);
+        animation: splashSlideUp 0.8s ease-out 0.5s backwards;
+        margin-bottom: 30px;
+    }
+    
+    .splash-loader {
+        width: 60px;
+        height: 60px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes splashBounce {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-20px) scale(1.05); }
+    }
+    
+    @keyframes splashSlideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes fadeOut {
+        to {
+            opacity: 0;
+            visibility: hidden;
+        }
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    /* Hide main content initially */
+    #mainContent {
+        opacity: 0;
+        animation: fadeIn 0.8s ease-in-out 2.8s forwards;
+    }
+    
+    @keyframes fadeIn {
+        to { opacity: 1; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
+<!-- Splash Screen -->
+<div id="splashScreen">
+    <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="TaskNest Logo" class="splash-logo">
+    <h1 class="splash-text">TaskNest</h1>
+    <p class="splash-tagline">🐝 Your Hive of Productivity</p>
+    <div class="splash-loader"></div>
+</div>
+
+<!-- Main Content -->
+<div id="mainContent">
 <div class="hero-section">
     <div class="container text-center">
         <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="TaskNest Logo" class="mb-4 fade-in" style="max-width: 250px; border-radius: 25px; box-shadow: 0 15px 40px rgba(255, 193, 7, 0.4); animation: float 6s ease-in-out infinite;">
@@ -98,4 +199,27 @@
         </a>
     </div>
 </div>
+</div>
+
+<script>
+    // Store splash screen state in sessionStorage
+    window.addEventListener('DOMContentLoaded', function() {
+        const hasSeenSplash = sessionStorage.getItem('hasSeenSplash');
+        
+        if (hasSeenSplash) {
+            // Hide splash immediately if already seen this session
+            document.getElementById('splashScreen').style.display = 'none';
+            document.getElementById('mainContent').style.opacity = '1';
+            document.getElementById('mainContent').style.animation = 'none';
+        } else {
+            // Show splash and mark as seen
+            sessionStorage.setItem('hasSeenSplash', 'true');
+            
+            // Remove splash screen from DOM after animation
+            setTimeout(function() {
+                document.getElementById('splashScreen').style.display = 'none';
+            }, 3500);
+        }
+    });
+</script>
 {% endblock %}
