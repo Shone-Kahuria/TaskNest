@@ -54,3 +54,4 @@ yarn.lock
 *.bak
 *.swp
 *.tmp
+sample_tasks.sql

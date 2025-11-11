@@ -535,6 +535,7 @@ def api_tasks():
 
 @app.route('/api/check-reminders', methods=['GET'])
 @login_required
+@csrf.exempt
 def api_check_reminders():
     """Check for pending reminders for current user"""
     try:
@@ -563,6 +564,7 @@ def api_check_reminders():
 
 @app.route('/api/mark-reminder-seen/<int:reminder_id>', methods=['POST'])
 @login_required
+@csrf.exempt
 def mark_reminder_seen(reminder_id):
     """Mark a reminder as seen/sent"""
     try:
