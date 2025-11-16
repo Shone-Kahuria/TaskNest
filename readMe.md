@@ -35,16 +35,16 @@ TaskNest is structured around several collaborative modules to deliver a powerfu
 
 ---
 
-## Technology Stack (Assumed/To Be Determined)
+## Technology Stack
 
 _(Note: Please replace the placeholders below with the actual technologies your team selects.)_
 
-| Component      | Technology / Language                                | Purpose                                       |
-| :------------- | :--------------------------------------------------- | :-------------------------------------------- |
-| **Frontend**   | \[e.g., React, Angular, Vue.js]                      | User Interface and Interaction                |
-| **Backend**    | \[e.g., Node.js/Express, Python/Django, Java/Spring] | API, Logic, and Authentication                |
-| **Database**   | \[e.g., PostgreSQL, MongoDB, MySQL]                  | Schema implementation and secure data storage |
-| **Deployment** | \[e.g., AWS, Firebase, Heroku]                       | Hosting and environment management            |
+| Component      | Technology / Language | Purpose                                       |
+| :------------- | :-------------------- | :-------------------------------------------- |
+| **Frontend**   | css                   | User Interface and Interaction                |
+| **Backend**    | Python                | API, Logic, and Authentication                |
+| **Database**   | PostgreSQL            | Schema implementation and secure data storage |
+| **Deployment** | Netlify               | Hosting and environment management            |
 
 ---
 
