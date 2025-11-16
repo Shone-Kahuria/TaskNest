@@ -20,7 +20,7 @@ An overview of the system's implementation is shown by the following diagrams be
 
 ## 2. Class Diagram
 
-![classdiagram](class_diagram.drawio.svg)
+![classdiagram](use_case_drawio.svg)
 
 TaskNest is structured around several collaborative modules to deliver a powerful experience:
 
