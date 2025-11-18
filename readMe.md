@@ -1,4 +1,4 @@
-# TASKNEST: Student Task Manager
+# Student Task Management Application
 
 ## Overview
 
@@ -37,8 +37,6 @@ TaskNest is structured around several collaborative modules to deliver a powerfu
 
 ## Technology Stack
 
-_(Note: Please replace the placeholders below with the actual technologies your team selects.)_
-
 | Component      | Technology / Language | Purpose                                       |
 | :------------- | :-------------------- | :-------------------------------------------- |
 | **Frontend**   | css                   | User Interface and Interaction                |
@@ -49,8 +47,6 @@ _(Note: Please replace the placeholders below with the actual technologies your 
 ---
 
 ## Team Structure and Roles
-
-The TaskNest development team is organized into specialized teams to ensure high-quality execution across all aspects of the project.
 
 | Team                        | Members                        | Core Responsibilities                                                                                                                                     |
 | :-------------------------- | :----------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -67,6 +63,6 @@ This project operates on a collaborative model where every module involves cross
 
 1.  **Fork** the repository.
 2.  **Clone** your forked repository.
-3.  Create a descriptive **branch** for your feature or fix (e.g., `feat/add-reminder-logic` or `fix/auth-bug`).
+3.  Create a descriptive **branch** for your feature or fix.
 4.  Commit your changes following a clear convention.
 5.  Push your branch and open a **Pull Request (PR)** to the `main` branch.
