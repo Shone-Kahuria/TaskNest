@@ -2,7 +2,7 @@ from flask import Flask, render_template, redirect, url_for, flash, request, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from config import Config
 from models import db, User, Task, Reminder, Progress, Exam
 from forms import RegistrationForm, LoginForm, TaskForm, ReminderForm, ProgressForm, TwoFactorForm, Enable2FAForm
@@ -28,7 +28,7 @@ login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
 
 # Scheduler for reminders
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(daemon=True)
 scheduler_started = False
 
 
@@ -41,25 +41,32 @@ def check_reminders():
     """Background task to check and send reminders"""
     try:
         with app.app_context():
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
+            print(f"[CHECK] Reminder check running at {now.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            
+            # Get all unsent reminders
+            all_unsent = Reminder.query.filter(Reminder.is_sent == False).all()
+            print(f"[INFO] Total unsent reminders in database: {len(all_unsent)}")
+            
+            # Check which ones are due
             pending_reminders = Reminder.query.filter(
                 Reminder.reminder_time <= now,
                 Reminder.is_sent == False
             ).all()
             
+            print(f"[INFO] Reminders due now: {len(pending_reminders)}")
+            
             for reminder in pending_reminders:
                 # In a production app, you would send email/push notification here
                 print(f"[REMINDER] TRIGGERED: {reminder.title} - {reminder.message}")
                 print(f"   User: {reminder.user.username} (ID: {reminder.user_id})")
-                print(f"   Time: {reminder.reminder_time}")
+                print(f"   Scheduled: {reminder.reminder_time}")
+                print(f"   Current: {now}")
                 reminder.is_sent = True
             
             if pending_reminders:
                 db.session.commit()
-                print(f"[SUCCESS] Marked {len(pending_reminders)} reminder(s) as sent at {now}")
-            else:
-                # Silent check - no output unless there's an issue
-                pass
+                print(f"[SUCCESS] Marked {len(pending_reminders)} reminder(s) as sent")
     except OperationalError as e:
         print(f"[ERROR] Database connection error in reminder check: {e}")
     except Exception as e:
@@ -73,6 +80,16 @@ def start_scheduler():
     global scheduler_started
     if not scheduler_started:
         try:
+            # Remove existing job if present
+            if scheduler.get_job('reminder_check'):
+                scheduler.remove_job('reminder_check')
+            
+            # Start the scheduler first
+            if not scheduler.running:
+                scheduler.start()
+                print("[DEBUG] APScheduler started")
+            
+            # Add the job
             scheduler.add_job(
                 func=check_reminders, 
                 trigger="interval", 
@@ -81,9 +98,22 @@ def start_scheduler():
                 replace_existing=True,
                 max_instances=1
             )
-            scheduler.start()
+            
             scheduler_started = True
             print("[SUCCESS] Reminder scheduler started successfully (checks every 30 seconds)")
+            print(f"[INFO] Scheduler running: {scheduler.running}")
+            print(f"[INFO] Jobs scheduled: {len(scheduler.get_jobs())}")
+            print(f"[INFO] Next check in 30 seconds")
+            
+            # Run an immediate test check (in 3 seconds)
+            scheduler.add_job(
+                func=check_reminders,
+                trigger='date',
+                run_date=datetime.now() + timedelta(seconds=3),
+                id='test_check'
+            )
+            print("[INFO] Test check scheduled for 3 seconds from now")
+            
         except Exception as e:
             print(f"[ERROR] Error starting scheduler: {e}")
             import traceback
@@ -319,29 +349,38 @@ def new_task():
     
     if form.validate_on_submit():
         try:
-            # Validate deadline is in the future
-            if form.deadline.data <= datetime.utcnow():
+            # Get deadline from form (this is in user's LOCAL time)
+            deadline_local = form.deadline.data
+            now_local = datetime.now()
+            now_utc = datetime.now(timezone.utc)
+            
+            # Validate deadline is in the future (using local time)
+            if deadline_local <= now_local:
                 flash('Deadline must be in the future.', 'warning')
                 return render_template('task_form.html', form=form, title='New Task')
+            
+            # Convert local time to UTC
+            utc_offset = now_local - now_utc.replace(tzinfo=None)
+            deadline_utc = deadline_local - utc_offset
             
             task = Task(
                 title=form.title.data.strip(),
                 description=form.description.data.strip() if form.description.data else None,
                 category=form.category.data,
                 priority=form.priority.data,
-                deadline=form.deadline.data,
+                deadline=deadline_utc,
                 user_id=current_user.id
             )
             db.session.add(task)
             db.session.commit()
             
             # Create automatic reminder 1 day before deadline
-            reminder_time = form.deadline.data - timedelta(days=1)
-            if reminder_time > datetime.utcnow():
+            reminder_time_utc = deadline_utc - timedelta(days=1)
+            if reminder_time_utc > now_utc:
                 reminder = Reminder(
                     title=f"Reminder: {task.title}",
                     message=f"Your task '{task.title}' is due tomorrow!",
-                    reminder_time=reminder_time,
+                    reminder_time=reminder_time_utc,
                     user_id=current_user.id,
                     task_id=task.id
                 )
@@ -371,8 +410,15 @@ def edit_task(task_id):
     
     if form.validate_on_submit():
         try:
+            # Get deadline from form (local time) and convert to UTC
+            deadline_local = form.deadline.data
+            now_local = datetime.now()
+            now_utc = datetime.now(timezone.utc)
+            utc_offset = now_local - now_utc.replace(tzinfo=None)
+            deadline_utc = deadline_local - utc_offset
+            
             # Validate deadline is in the future for non-completed tasks
-            if task.status != 'completed' and form.deadline.data <= datetime.utcnow():
+            if task.status != 'completed' and deadline_local <= now_local:
                 flash('Deadline must be in the future for active tasks.', 'warning')
                 return render_template('task_form.html', form=form, title='Edit Task', task=task)
             
@@ -380,8 +426,8 @@ def edit_task(task_id):
             task.description = form.description.data.strip() if form.description.data else None
             task.category = form.category.data
             task.priority = form.priority.data
-            task.deadline = form.deadline.data
-            task.updated_at = datetime.utcnow()
+            task.deadline = deadline_utc
+            task.updated_at = now_utc
             
             db.session.commit()
             flash('Task updated successfully!', 'success')
@@ -538,19 +584,40 @@ def new_reminder():
     
     if form.validate_on_submit():
         try:
-            # Validate reminder time is in the future
-            if form.reminder_time.data <= datetime.utcnow():
+            # Get the datetime from the form (this is in user's LOCAL time, but naive)
+            reminder_time_local = form.reminder_time.data
+            
+            # Get current times for comparison
+            now_local = datetime.now()
+            now_utc = datetime.now(timezone.utc)
+            
+            # Validate reminder time is in the future (using local time)
+            if reminder_time_local <= now_local:
                 flash('Reminder time must be in the future.', 'warning')
                 return render_template('reminder_form.html', form=form, title='New Reminder')
+            
+            # Calculate the time difference between local and UTC
+            utc_offset = now_local - now_utc.replace(tzinfo=None)
+            
+            # Convert local time to UTC by subtracting the offset
+            # Remove tzinfo before storing (SQLite stores as naive datetime in UTC)
+            reminder_time_utc = reminder_time_local - utc_offset
             
             reminder = Reminder(
                 title=form.title.data.strip(),
                 message=form.message.data.strip() if form.message.data else None,
-                reminder_time=form.reminder_time.data,
+                reminder_time=reminder_time_utc,
                 user_id=current_user.id
             )
             db.session.add(reminder)
             db.session.commit()
+            
+            print(f"[REMINDER] Created new reminder: {reminder.title}")
+            print(f"[REMINDER] User entered (Local): {reminder_time_local}")
+            print(f"[REMINDER] Stored as (UTC): {reminder_time_utc}")
+            print(f"[REMINDER] Current Local Time: {now_local}")
+            print(f"[REMINDER] Current UTC Time: {now_utc}")
+            print(f"[REMINDER] UTC Offset: {utc_offset}")
             
             flash('Reminder set successfully!', 'success')
             return redirect(url_for('reminders'))
@@ -558,6 +625,8 @@ def new_reminder():
         except Exception as e:
             db.session.rollback()
             flash(f'Error creating reminder: {str(e)}', 'danger')
+            import traceback
+            traceback.print_exc()
     
     return render_template('reminder_form.html', form=form, title='New Reminder')
 
@@ -691,7 +760,7 @@ def api_tasks():
 def api_check_reminders():
     """Check for pending reminders for current user"""
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         pending_reminders = Reminder.query.filter(
             Reminder.user_id == current_user.id,
             Reminder.reminder_time <= now,
@@ -703,14 +772,19 @@ def api_check_reminders():
             reminders_data.append({
                 'id': reminder.id,
                 'title': reminder.title,
-                'message': reminder.message,
+                'message': reminder.message or 'Reminder alert!',
                 'time': reminder.reminder_time.strftime('%B %d, %Y at %I:%M %p')
             })
         
         print(f"[REMINDER] API: Found {len(reminders_data)} pending reminders for user {current_user.username}")
+        print(f"[REMINDER] API: Current time: {now}")
+        if reminders_data:
+            print(f"[REMINDER] API: Returning reminders: {[r['title'] for r in reminders_data]}")
         return jsonify(reminders_data)
     except Exception as e:
         print(f"[ERROR] API Error in check-reminders: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -840,9 +914,14 @@ def edit_profile():
 # Create tables
 with app.app_context():
     db.create_all()
-    # Start the reminder scheduler
-    start_scheduler()
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Start the scheduler only in the main process (not in reloader child process)
+    import os
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        # This is the reloader child process
+        start_scheduler()
+        print("[INFO] Scheduler started in main worker process")
+    
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=True)

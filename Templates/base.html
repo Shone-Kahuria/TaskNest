@@ -159,30 +159,90 @@
     <script>
         let apiWorking = false;
         
-        // Notification sound (using Web Audio API)
+        // Enhanced notification sound with continuous alert
+        let audioContext = null;
+        let soundInterval = null;
+        
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            // Resume if suspended (required by some browsers)
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            return audioContext;
+        }
+        
         function playNotificationSound() {
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = 800;
-                oscillator.type = 'sine';
-                
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-                
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 0.5);
-                
-                console.log('🔊 Notification sound played');
-            } catch (e) {
-                console.error('Error playing sound:', e);
+            console.log('🔊 Starting continuous notification sound...');
+            
+            // Stop any existing sound
+            stopNotificationSound();
+            
+            // Function to play one beep sequence
+            function playSingleBeep() {
+                try {
+                    const context = initAudioContext();
+                    
+                    // Create a pleasant notification beep sequence
+                    function playTone(frequency, startTime, duration, volume) {
+                        const oscillator = context.createOscillator();
+                        const gainNode = context.createGain();
+                        
+                        oscillator.connect(gainNode);
+                        gainNode.connect(context.destination);
+                        
+                        oscillator.frequency.value = frequency;
+                        oscillator.type = 'sine';
+                        
+                        // Envelope for smooth sound
+                        gainNode.gain.setValueAtTime(0, startTime);
+                        gainNode.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                        
+                        oscillator.start(startTime);
+                        oscillator.stop(startTime + duration);
+                    }
+                    
+                    // Play three tones for attention-grabbing notification
+                    const now = context.currentTime;
+                    playTone(800, now, 0.15, 0.5);          // First tone (high)
+                    playTone(1000, now + 0.15, 0.15, 0.5);  // Second tone (higher)
+                    playTone(800, now + 0.3, 0.3, 0.5);     // Third tone (high again)
+                    
+                    console.log('🔔 Beep played');
+                } catch (e) {
+                    console.error('❌ Error playing sound:', e);
+                }
+            }
+            
+            // Play immediately
+            playSingleBeep();
+            
+            // Then repeat every 2 seconds
+            soundInterval = setInterval(playSingleBeep, 2000);
+            console.log('✅ Continuous sound started (every 2 seconds)');
+        }
+        
+        function stopNotificationSound() {
+            if (soundInterval) {
+                clearInterval(soundInterval);
+                soundInterval = null;
+                console.log('🔇 Continuous sound stopped');
             }
         }
+        
+        // Initialize audio context on first user interaction
+        $(document).one('click keydown', function() {
+            console.log('🎵 Initializing audio context...');
+            try {
+                initAudioContext();
+                console.log('✅ Audio context ready');
+            } catch (e) {
+                console.error('❌ Could not initialize audio:', e);
+            }
+        });
         
         function testAPI() {
             console.log('🧪 Testing API connection...');
@@ -232,10 +292,33 @@
         }
         
         function showReminderModal(reminders) {
+            console.log('🔔 Displaying reminder modal for', reminders.length, 'reminder(s)');
+            
+            // Start continuous sound FIRST
+            playNotificationSound();
+            
+            // Vibrate if supported (mobile devices)
+            if ('vibrate' in navigator) {
+                navigator.vibrate([200, 100, 200, 100, 200]);
+                console.log('📳 Vibration triggered');
+            }
+            
+            // Flash the page title
+            let originalTitle = document.title;
+            let flashCount = 0;
+            let flashInterval = setInterval(function() {
+                document.title = (flashCount % 2 === 0) ? '🔔 NEW REMINDER!' : originalTitle;
+                flashCount++;
+                if (flashCount > 20) {
+                    clearInterval(flashInterval);
+                    document.title = originalTitle;
+                }
+            }, 500);
+            
             let content = '';
             reminders.forEach(function(reminder) {
                 content += `
-                    <div class="alert alert-warning mb-3 reminder-alert">
+                    <div class="alert alert-warning mb-3 reminder-alert" style="animation: pulse 1s infinite;">
                         <h6 class="fw-bold"><i class="bi bi-bell-fill"></i> ${reminder.title}</h6>
                         <p class="mb-1">${reminder.message || 'Reminder alert!'}</p>
                         <small class="text-muted"><i class="bi bi-clock"></i> ${reminder.time}</small>
@@ -253,6 +336,14 @@
             reminderModal.show();
             console.log('✅ Modal displayed');
             
+            // Stop sound when modal is closed
+            $('#reminderModal').on('hidden.bs.modal', function () {
+                stopNotificationSound();
+                clearInterval(flashInterval);
+                document.title = originalTitle;
+                console.log('🔕 Sound stopped - modal closed');
+            });
+            
             // Request browser notification permission if not granted
             if ('Notification' in window && Notification.permission === 'default') {
                 Notification.requestPermission();
@@ -263,8 +354,11 @@
                 new Notification('TaskNest Reminder 🐝', {
                     body: `You have ${reminders.length} reminder(s) pending!`,
                     icon: '{{ url_for("static", filename="images/logo.jpg") }}',
-                    badge: '{{ url_for("static", filename="images/logo.jpg") }}'
+                    badge: '{{ url_for("static", filename="images/logo.jpg") }}',
+                    requireInteraction: true,
+                    tag: 'reminder-notification'
                 });
+                console.log('🔔 Browser notification shown');
             }
         }
         
@@ -282,7 +376,9 @@
                     // Check if there are any more reminders
                     setTimeout(function() {
                         if ($('.reminder-alert:visible').length === 0) {
+                            stopNotificationSound();
                             bootstrap.Modal.getInstance(document.getElementById('reminderModal')).hide();
+                            console.log('🔕 All reminders acknowledged - sound stopped');
                         }
                     }, 300);
                 },
@@ -376,6 +472,22 @@
         .container, .honeycomb-card {
             position: relative;
             z-index: 10;
+        }
+        
+        /* Pulse animation for reminders */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+            }
+            50% {
+                transform: scale(1.02);
+                box-shadow: 0 0 20px 5px rgba(255, 193, 7, 0.3);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+            }
         }
     </style>
     
